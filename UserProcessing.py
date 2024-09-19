@@ -12,23 +12,31 @@ class UserProfile:
 
 def createUserVector(userProfile, scaler, encoder, featureColumns):
     """
-    사용자 프로필을 바탕으로 표준화된 영양소 벡터와 카테고리 벡터 생성
+    사용자 프로필을 바탕으로 표준화된 영양소 벡터와 사용자가 선호하는 카테고리 벡터만 포함하여 생성.
     """
     # 사용자 영양 성분 벡터 생성
     nutritionVector = scaler.transform([[userProfile.kcal, userProfile.protein, 
                                          userProfile.fat, userProfile.carb]]).flatten()
     
-    # 사용자 선호 카테고리 반영 카테고리 벡터 생성
-    categoryVector = np.zeros(encoder.categories_[0].shape[0]) # 카테고리 벡터 초기화
-    for cat in userProfile.preferredCategories:
-        try:
-            idx = featureColumns.index(f'food_code_name_{cat}')
-            categoryVector[idx - 4] = 1  # 카테고리 벡터는 영양소 4개 열 이후부터 시작
-        except ValueError:
-            print(f"'{cat}' 카테고리를 인코더 카테고리에서 찾을 수 없습니다.")
-    
-    # 사용자 최종 벡터 결합
+    # 사용자가 선호하는 카테고리 벡터 생성
+    categoryVector = []
+    preferredCategories = set(userProfile.preferredCategories)
+
+    # featureColumns에서 카테고리 부분만 사용하여 벡터 생성
+    for col in featureColumns[4:]:  # 영양소 컬럼 이후부터 카테고리 컬럼만 포함
+        category_name = col.split('_')[-1]  # 'food_code_name_밥류' -> '밥류'
+        if category_name in preferredCategories:
+            categoryVector.append(1)
+        else:
+            categoryVector.append(0)
+
+    # 최종 사용자 벡터 결합
     userVector = np.concatenate((nutritionVector, categoryVector))
-    print(nutritionVector.shape)
-    print(categoryVector.shape)
+
+    # 벡터 길이 검증
+    if len(userVector) != len(featureColumns):
+        print(f"유저 벡터의 길이: {len(userVector)}, 피처 컬럼 수: {len(featureColumns)}")
+        print("Check the matching process between userVector and featureColumns.")
+    
+    print(f"userVector: {userVector}")
     return userVector

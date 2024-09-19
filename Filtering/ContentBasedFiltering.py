@@ -12,6 +12,8 @@ def contentBasedFiltering(userVector, foodData, featureDF):
     """
 
     # 유사도 계산
+    # print("유저벡터", userVector)
+    # print("featurDF", featureDF)
     similarities = cosine_similarity([userVector], featureDF.values)
     foodData['similarity'] = similarities[0]
     recommendations = foodData.sort_values(by='similarity', ascending=False)

@@ -1,3 +1,4 @@
+from flask import Flask, render_template, request, jsonify
 from DataBase.DatabaseHandler import DatabaseHandler
 from DataProcessing import Processing
 from UserProcessing import UserProfile, createUserVector
@@ -7,6 +8,9 @@ from GeneticAlgorithm import optimizeWithGeneticAlgorithm
 import numpy as np
 import pandas as pd
 
+# Flask 앱 생성
+app = Flask(__name__)
+
 # 무한대와 NaN 값 처리 함수 정의
 def cleanNumericData(df):
     df = df.apply(pd.to_numeric, errors='coerce')
@@ -15,24 +19,34 @@ def cleanNumericData(df):
     df = df.clip(lower=-1e10, upper=1e10)
     return df
 
-if __name__ == '__main__':
-    # MySQL DB 연결 설정
-    dbConfig = {
-        'host': '127.0.0.1',
-        'user': 'root',
-        'password': '785466',
-        'database': 'sys',
-        'port': 3306,
-    }
+# DB 설정
+dbConfig = {
+    'host': '127.0.0.1',
+    'user': 'root',
+    'password': '785466',
+    'database': 'sys',
+    'port': 3306,
+}
 
-    # DB 연결(인스턴스 생성)
-    dbHandler = DatabaseHandler(dbConfig)
+# DB 연결 인스턴스 생성
+dbHandler = DatabaseHandler(dbConfig)
 
+# Flask의 메인 페이지 설정
+@app.route('/')
+def index():
+    return render_template('index.html')  # index.html 파일을 사용할 수 있도록 함
+
+@app.route('/recommend', methods=['POST'])
+def recommend():
+    # 사용자가 POST 요청으로 넘긴 데이터를 가져옴
+    user_id = request.form['user_id']
+    
     # food_data 및 feedback 데이터 로드
     foodData = dbHandler.loadData("SELECT * FROM food_data")
-    user_id = 'k65654'
     feedbackData = dbHandler.loadData(f"SELECT user_id, food_code, rating FROM feedback WHERE user_id = '{user_id}'")
-    print(feedbackData.columns)
+
+    if feedbackData.empty:
+        return jsonify({'error': '해당 사용자 ID에대한 데이터가 존재하지 않습니다.'}), 400
 
     # 100g 기준 영양소 정보 추가
     foodData['kcal100'] = foodData['kcal'] * (100 / foodData['food_weight'])
@@ -49,30 +63,16 @@ if __name__ == '__main__':
 
     # 카테고리 인코딩 (One-Hot Encoding)
     categoryEncoding = processing.oneHotEncodeCategoricalData(foodData, 'food_code_name')
-    print(list(categoryEncoding.columns))
-
-    # 카테고리 인코딩이 숫자형인지 확인하고 필요 시 변환
     categoryEncoding = categoryEncoding.apply(pd.to_numeric, errors='coerce')
 
     # 표준화된 영양 성분과 인코딩된 카테고리 벡터 결합
     featureVector = np.hstack((standardizedDf, categoryEncoding))
     featureColumns = ['kcal_std', 'protein_std', 'fat_std', 'carb_std'] + list(categoryEncoding.columns)
-    
-    # 중복 컬럼 이름 확인 및 제거
-    featureColumns = pd.Index(featureColumns).unique().tolist()
+
+    # 데이터프레임 생성
     featureDf = pd.DataFrame(featureVector, columns=featureColumns)
 
-    # numericColumns는 영양 성분과 카테고리 인코딩 컬럼으로 구성
-    numericColumns = ['kcal_std', 'protein_std', 'fat_std', 'carb_std'] + list(categoryEncoding.columns)
-
-    # 클리닝 함수 적용
-    cleanedDf = cleanNumericData(featureDf[numericColumns])
-
-    # 원본 데이터프레임에 동일한 컬럼의 데이터만 대입
-    featureDf.loc[:, numericColumns] = cleanedDf
-
-
-    # 사용자 프로필 및 벡터 생성
+    # 사용자 프로필 생성
     userProfile = UserProfile(kcal=2000, protein=120, fat=44.4, carb=275, preferredCategories=['밥류', '면류', '과자류'])
     scaler = processing.getScaler()
     encoder = processing.getEncoder()
@@ -85,7 +85,7 @@ if __name__ == '__main__':
     # 사용자 벡터 생성
     userVector = createUserVector(userProfile, scaler, encoder, optimizedFeatureColumns)
 
-    # 최적화된 콘텐츠 기반 필터링 수행
+    # 콘텐츠 기반 필터링
     contentRecommendation = contentBasedFiltering(userVector, foodData, optimizedFeatureDf)
 
     # 협업 필터링
@@ -94,25 +94,57 @@ if __name__ == '__main__':
     # 중복 제거
     combinedRecommendation = pd.concat([contentRecommendation, collaborativeRecommendation]).drop_duplicates(subset=['food_name'])
 
-    # 최적화를 위해 필요한 컬럼만 남김
-    requiredColumns = ['food_name', 'kcal', 'protein', 'fat', 'carb']
+    # 필요한 컬럼만 남김
+    requiredColumns = ['food_name', 'kcal', 'protein', 'fat', 'carb', 'company', 'food_number', 'food_code']
     combinedRecommendation = combinedRecommendation[requiredColumns]
 
     # 목표 섭취량
     dailyTargets = {'kcal': 2000, 'protein': 120, 'fat': 44.4, 'carb': 275}
     mealTargets = {key: value / 2 for key, value in dailyTargets.items()}
+
+    # 점심 및 저녁 세트 추천 최적화 수행
+    lunchIndices = optimizeWithGeneticAlgorithm(combinedRecommendation, mealTargets, min_items=3, max_items=5)
+    dinnerIndices = optimizeWithGeneticAlgorithm(combinedRecommendation, mealTargets, min_items=3, max_items=5)
+
+    lunchRecommendation = combinedRecommendation.iloc[lunchIndices]
+    dinnerRecommendation = combinedRecommendation.iloc[dinnerIndices]
+
+    # JSON으로 결과 반환
+    return jsonify({
+        'lunch': lunchRecommendation.to_dict(orient='records'),
+        'dinner': dinnerRecommendation.to_dict(orient='records')
+    })
+
+# 평점 저장
+@app.route('/submit_rating', methods=['POST'])
+def submit_rating():
+    user_id = request.form['user_id']
     
-    # 점심 세트 추천 최적화 수행
-    lunchIndices = optimizeWithGeneticAlgorithm(foodData, mealTargets, min_items=3, max_items=5)
-    lunchRecommendation = foodData.iloc[lunchIndices]
+    # 점심 평점 처리
+    lunch_food_codes = request.form.getlist('lunch_food_code[]')
+    lunch_food_numbers = request.form.getlist('lunch_food_number[]')
+    lunch_ratings = request.form.getlist('lunch_rating[]')
 
-    # 저녁 세트 추천 최적화 수행
-    dinnerIndices = optimizeWithGeneticAlgorithm(foodData, mealTargets, min_items=3, max_items=5)
-    dinnerRecommendation = foodData.iloc[dinnerIndices]
+    # 저녁 평점 처리
+    dinner_food_codes = request.form.getlist('dinner_food_code[]')
+    dinner_food_numbers = request.form.getlist('dinner_food_number[]')
+    dinner_ratings = request.form.getlist('dinner_rating[]')
 
-    # 최종 추천 결과 출력
-    print("점심 추천 세트:")
-    print(lunchRecommendation[['food_name', 'kcal', 'protein', 'fat', 'carb']])
+    # 점심과 저녁 평점 데이터를 하나의 리스트로 합침
+    feedback_data = []
+    
+    # 점심 평점 데이터 추가
+    for food_code, food_number, rating in zip(lunch_food_codes, lunch_food_numbers, lunch_ratings):
+        feedback_data.append((food_code, food_number, rating))
+    
+    # 저녁 평점 데이터 추가
+    for food_code, food_number, rating in zip(dinner_food_codes, dinner_food_numbers, dinner_ratings):
+        feedback_data.append((food_code, food_number, rating))
 
-    print("\n저녁 추천 세트:")
-    print(dinnerRecommendation[['food_name', 'kcal', 'protein', 'fat', 'carb']])
+    # 평점 데이터를 저장
+    dbHandler.saveFeedback(user_id, feedback_data)
+
+    return jsonify({'status': '평점이 저장되었습니다!'})
+
+if __name__ == '__main__':
+    app.run(debug=True)

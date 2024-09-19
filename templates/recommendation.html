@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>추천 결과</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container">
+        <h1 class="my-4">추천 식단</h1>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>음식명</th>
+                    <th>칼로리</th>
+                    <th>탄수화물</th>
+                    <th>단백질</th>
+                    <th>지방</th>
+                    <th>회사명</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in recommended_data %}
+                <tr>
+                    <td>{{ item.food_name }}</td>
+                    <td>{{ item.kcal }}</td>
+                    <td>{{ item.carb }}</td>
+                    <td>{{ item.protein }}</td>
+                    <td>{{ item.fat }}</td>
+                    <td>{{ item.company_name }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>음식 추천 시스템</title>
+</head>
+<body>
+    <h1>음식 추천 시스템</h1>
+    <form action="/recommend" method="post">
+        <label for="user_id">사용자 ID:</label>
+        <input type="text" id="user_id" name="user_id">
+        <button type="submit">추천 요청</button>
+    </form>
+
+    <h2>추천 결과</h2>
+    <div id="result"></div>
+
+    <!-- 평점 폼 추가 -->
+    <form id="rating-form" style="display:none;">
+        <!-- 숨겨진 user_id 필드 추가 -->
+        <input type="hidden" id="hidden_user_id" name="user_id">
+        
+        <h3>점심 추천에 대한 평점:</h3>
+        <div id="lunch_ratings"></div>
+
+        <h3>저녁 추천에 대한 평점:</h3>
+        <div id="dinner_ratings"></div>
+
+        <button type="submit">평점 제출</button>
+    </form>
+
+    <script>
+        // 폼 제출 후 추천 결과를 출력하는 로직
+        document.querySelector('form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const userId = document.getElementById('user_id').value;
+
+            fetch('/recommend', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 점심 추천 테이블 생성
+                let lunchTable = createTable(data.lunch);
+                let dinnerTable = createTable(data.dinner);
+
+                // 결과를 출력할 div 요소를 가져옴
+                let resultDiv = document.getElementById('result');
+                resultDiv.innerHTML = `
+                    <h3>점심 추천:</h3>
+                    ${lunchTable}
+                    <br>
+                    <h3>저녁 추천:</h3>
+                    ${dinnerTable}`;
+
+                // 평점 폼 표시
+                document.getElementById('rating-form').style.display = 'block';
+
+                // 숨겨진 user_id 값 설정
+                document.getElementById('hidden_user_id').value = userId;
+
+                // 점심 평점 입력 부분 생성
+                let lunchRatingsDiv = document.getElementById('lunch_ratings');
+                lunchRatingsDiv.innerHTML = '';
+                data.lunch.forEach((item, index) => {
+                    lunchRatingsDiv.innerHTML += `
+                    <input type="hidden" name="lunch_food_code[]" value="${item.food_code}">
+                    <input type="hidden" name="lunch_food_number[]" value="${item.food_number}">
+                    <label>${item.food_name} 평점:</label>
+                    <select name="lunch_rating[]">
+                        <option value="1">매우불만족</option>
+                        <option value="2">불만족</option>
+                        <option value="3">보통</option>
+                        <option value="4">만족</option>
+                        <option value="5">매우만족</option>
+                    </select><br>`;
+                });
+
+                // 저녁 평점 입력 부분 생성
+                let dinnerRatingsDiv = document.getElementById('dinner_ratings');
+                dinnerRatingsDiv.innerHTML = '';
+                data.dinner.forEach((item, index) => {
+                    dinnerRatingsDiv.innerHTML += `
+                    <input type="hidden" name="dinner_food_code[]" value="${item.food_code}">
+                    <input type="hidden" name="dinner_food_number[]" value="${item.food_number}">
+                    <label>${item.food_name} 평점:</label>
+                    <select name="dinner_rating[]">
+                        <option value="1">매우불만족</option>
+                        <option value="2">불만족</option>
+                        <option value="3">보통</option>
+                        <option value="4">만족</option>
+                        <option value="5">매우만족</option>
+                    </select><br>`;
+                });
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        // 테이블 생성 함수
+        function createTable(data) {
+            let tableHtml = `
+            <table border="1" style="border-collapse: collapse; width: 100%;">
+                <tr>
+                    <th>음식명</th>
+                    <th>칼로리(kcal)</th>
+                    <th>탄수화물(g)</th>
+                    <th>단백질(g)</th>
+                    <th>지방(g)</th>
+                    <th>회사명</th>
+                </tr>`;
+
+            // 데이터 항목별로 행을 추가
+            data.forEach(item => {
+                tableHtml += `
+                <tr>
+                    <td>${item.food_name}</td>
+                    <td>${item.kcal.toFixed(2)}</td>
+                    <td>${item.carb.toFixed(2)}</td>
+                    <td>${item.protein.toFixed(2)}</td>
+                    <td>${item.fat.toFixed(2)}</td>
+                    <td>${item.company}</td>
+                </tr>`;
+            });
+
+            tableHtml += `</table>`;
+            return tableHtml;
+        }
+
+        // 평점 제출 로직
+        document.getElementById('rating-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const ratingFormData = new FormData(event.target);
+
+            fetch('/submit_rating', {
+                method: 'POST',
+                body: ratingFormData
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('평점이 저장되었습니다!');
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
+</body>
+</html>

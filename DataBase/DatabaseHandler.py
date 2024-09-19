@@ -14,12 +14,20 @@ class DatabaseHandler:
     conn.close()
     return data
 
-  def saveFeedback(self, user_id, food_id, rating):
-    print('start saveFeedback')
-    conn = self.connectDB()
-    cursor = conn.cursor()
-    cursor.execute("REPLACE INTO feedback (user_id, food_id, rating) VALUES (%s, %s, %s), (user_id, food_id, rating)")
-
-    conn.commit()
-    conn.close()
-    print('end saveFeedback')
+  def saveFeedback(self, user_id, feedback_data):
+      """
+      평점 데이터를 저장하는 메소드
+      feedback_data는 각 평점에 대해 (food_code, food_number, rating)의 리스트 형태로 전달됨
+      """
+      conn = self.connectDB()
+      cursor = conn.cursor()
+      feedback_query = """
+      REPLACE INTO feedback (user_id, food_code, food_number, rating)
+      VALUES (%s, %s, %s, %s)
+      """
+      # 각 음식에 대해 평점 데이터를 저장
+      for food_code, food_number, rating in feedback_data:
+          cursor.execute(feedback_query, (user_id, food_code, food_number, rating))
+      
+      conn.commit()
+      conn.close()
