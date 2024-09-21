@@ -34,7 +34,7 @@ dbHandler = DatabaseHandler(dbConfig)
 # Flask의 메인 페이지 설정
 @app.route('/')
 def index():
-    return render_template('index.html')  # index.html 파일을 사용할 수 있도록 함
+    return render_template('foodrecommend.html')  # index.html 파일을 사용할 수 있도록 함
 
 @app.route('/recommend', methods=['POST'])
 def recommend():
@@ -43,7 +43,7 @@ def recommend():
     
     # food_data 및 feedback 데이터 로드
     foodData = dbHandler.loadData("SELECT * FROM food_data")
-    feedbackData = dbHandler.loadData(f"SELECT user_id, food_code, rating FROM feedback WHERE user_id = '{user_id}'")
+    feedbackData = dbHandler.loadData(f"SELECT user_id, food_code, food_number, rating FROM feedback WHERE user_id = '{user_id}'")
 
     if feedbackData.empty:
         return jsonify({'error': '해당 사용자 ID에대한 데이터가 존재하지 않습니다.'}), 400
@@ -93,7 +93,7 @@ def recommend():
 
     # 중복 제거
     combinedRecommendation = pd.concat([contentRecommendation, collaborativeRecommendation]).drop_duplicates(subset=['food_name'])
-
+    
     # 필요한 컬럼만 남김
     requiredColumns = ['food_name', 'kcal', 'protein', 'fat', 'carb', 'company', 'food_number', 'food_code']
     combinedRecommendation = combinedRecommendation[requiredColumns]

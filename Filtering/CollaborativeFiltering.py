@@ -16,7 +16,7 @@ def collaborativeFiltering(user_id, foodData, feedbackData):
     """
 
     # 사용자-아이템 행렬 생성
-    userItemMatrix = feedbackData.pivot(index='user_id', columns='food_code', values='rating').fillna(0)
+    userItemMatrix = feedbackData.pivot(index='user_id', columns='food_number', values='rating').fillna(0)
     # userItemMatrix의 형태와 내용을 확인
     print("userItemMatrix shape:", userItemMatrix.shape)
     print(userItemMatrix.head())
@@ -31,6 +31,6 @@ def collaborativeFiltering(user_id, foodData, feedbackData):
     
     # 유사한 사용자들의 평균 평점 기반으로 음식 추천
     similarUsers = userItemMatrix.index[userSimilarity > 0.5]
-    recommendedFoods = foodData[foodData['food_code'].isin(userItemMatrix.loc[similarUsers].mean(axis=0).nlargest(10).index)]
+    recommendedFoods = foodData[foodData['food_number'].isin(userItemMatrix.loc[similarUsers].mean(axis=0).nlargest(10).index)]
 
     return recommendedFoods
