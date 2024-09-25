@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from DataBase.DatabaseHandler import DatabaseHandler
 from DataProcessing import Processing
-from UserProcessing import UserProfile, createUserVector
+from UserProcessing import UserProfile, createUserVector, calculateBmr
 from Filtering.ContentBasedFiltering import contentBasedFiltering
 from Filtering.CollaborativeFiltering import collaborativeFiltering
 from GeneticAlgorithm import optimizeWithGeneticAlgorithm
@@ -24,7 +24,7 @@ dbConfig = {
     'host': '127.0.0.1',
     'user': 'root',
     'password': '785466',
-    'database': 'sys',
+    'database': 'food_data',
     'port': 3306,
 }
 
@@ -36,14 +36,56 @@ dbHandler = DatabaseHandler(dbConfig)
 def index():
     return render_template('foodrecommend.html')  # index.html 파일을 사용할 수 있도록 함
 
+@app.route('/check_profile', methods=['POST'])
+def check_profile():
+    user_id = request.form['user_id']
+
+    # user_profile 테이블에서 해당 user_id가 존재하는지 확인
+    query = f"SELECT COUNT(*) AS profile_count FROM user_profile WHERE user_id = '{user_id}'"
+    result = dbHandler.loadData(query)
+    profile_exists = result.iloc[0]['profile_count'] > 0
+
+    # 프로필 존재 여부 반환
+    return jsonify({'profile_exists': profile_exists}), 200
+
+@app.route('/save_profile', methods=['POST'])
+def save_userprofile():
+    # POST로 전달된 데이터 수신
+    user_id = request.form['user_id']
+    age = request.form['age']
+    height = request.form['height']
+    weight = request.form['weight']
+    gender = request.form['gender']
+    preferredCategories = request.form.getlist('preferredCategories')  # 다중 선택 리스트
+
+    # food_code와 food_code_name을 그룹화
+    food_codes = []
+    food_code_names = []
+    for food_code in preferred_categories:
+        food_code = int(food_code)  # 문자열을 정수로 변환
+        # 데이터베이스에서 해당 food_code_name을 가져오기
+        food_code_name = dbHandler.loadData(f"SELECT food_code_name FROM food_data WHERE food_code = {food_code}").iloc[0]['food_code_name']
+        food_codes.append(food_code)
+        food_code_names.append(food_code_name)
+
+    # 쉼표로 구분된 문자열로 다시 변환 (그룹화)
+    food_codes_str = ','.join(map(str, food_codes))
+    food_code_names_str = ','.join(food_code_names)
+
+    # DB에 저장
+    dbHandler.saveUserProfile(user_id, height, weight, age, gender, food_codes_str, food_code_names_str)
+
+    return jsonify({"message": "Profile saved"}), 200
+
 @app.route('/recommend', methods=['POST'])
 def recommend():
     # 사용자가 POST 요청으로 넘긴 데이터를 가져옴
     user_id = request.form['user_id']
-    
+
     # food_data 및 feedback 데이터 로드
     foodData = dbHandler.loadData("SELECT * FROM food_data")
     feedbackData = dbHandler.loadData(f"SELECT user_id, food_code, food_number, rating FROM feedback WHERE user_id = '{user_id}'")
+    userData = dbHandler.loadData(f"SELECT * FROM user_profile WHERE user_id = '{user_id}'")
 
     if feedbackData.empty:
         return jsonify({'error': '해당 사용자 ID에대한 데이터가 존재하지 않습니다.'}), 400
@@ -72,8 +114,20 @@ def recommend():
     # 데이터프레임 생성
     featureDf = pd.DataFrame(featureVector, columns=featureColumns)
 
+    # 사용자 영양 섭취량 계산
+    userNut = calculateBmr(userData['user_gender'].iloc[0], userData['user_weight'].iloc[0], userData['user_height'].iloc[0], userData['user_age'].iloc[0]) #*** 최적화 필요
+    userProtein = (userData['user_weight'] * 1.2) / 4
+    userCarb = (userNut * 0.55) / 4
+    userFat = (userNut - userProtein - userCarb) / 9
+
+    # 사용자 프로필 생성 전에 preferredCategories 값을 리스트로 변환
+    preferredCategories = userData['food_code_name'].tolist()
+    
     # 사용자 프로필 생성
-    userProfile = UserProfile(kcal=2000, protein=120, fat=44.4, carb=275, preferredCategories=['밥류', '면류', '과자류'])
+    userProfile = UserProfile(kcal=userNut, protein=userProtein, fat=userFat, carb=userCarb, preferredCategories=preferredCategories)
+    # preferredCategories 값 확인
+    print("***************************************************************************************************************")
+    print(f"preferredCategories: {userProfile.preferredCategories}")
     scaler = processing.getScaler()
     encoder = processing.getEncoder()
 
@@ -99,7 +153,7 @@ def recommend():
     combinedRecommendation = combinedRecommendation[requiredColumns]
 
     # 목표 섭취량
-    dailyTargets = {'kcal': 2000, 'protein': 120, 'fat': 44.4, 'carb': 275}
+    dailyTargets = {'kcal': userNut, 'protein': userProtein, 'fat': userFat, 'carb': userCarb}
     mealTargets = {key: value / 2 for key, value in dailyTargets.items()}
 
     # 점심 및 저녁 세트 추천 최적화 수행

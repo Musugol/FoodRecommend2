@@ -30,8 +30,8 @@ if __name__ == '__main__':
 
     # food_data 및 feedback 데이터 로드
     foodData = dbHandler.loadData("SELECT * FROM food_data")
-    user_id = 'musugol'
-    feedbackData = dbHandler.loadData(f"SELECT user_id, food_code, food_number, rating FROM feedback WHERE user_id = '{user_id}'")
+    user_id = 'k65654'
+    feedbackData = dbHandler.loadData(f"SELECT user_id, food_code, rating FROM feedback WHERE user_id = '{user_id}'")
     print(feedbackData.columns)
 
     # 100g 기준 영양소 정보 추가
