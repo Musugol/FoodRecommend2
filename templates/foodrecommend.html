@@ -8,8 +8,8 @@
 <body>
     <h1>음식 추천 시스템</h1>
     <form action="/recommend" method="post">
-        <label for="user_id">사용자 ID:</label>
-        <input type="text" id="user_id" name="user_id">
+        <label for="username">사용자 ID:</label>
+        <input type="text" id="username" name="username">
         <button type="submit">추천 요청</button>
     </form>
 
@@ -19,7 +19,7 @@
     <!-- 평점 폼 추가 -->
     <form id="rating-form" style="display:none;">
         <!-- 숨겨진 user_id 필드 추가 -->
-        <input type="hidden" id="hidden_user_id" name="user_id">
+        <input type="hidden" id="hidden_user_id" name="username">
         
         <h3>점심 추천에 대한 평점:</h3>
         <div id="lunch_ratings"></div>
@@ -35,7 +35,7 @@
         document.querySelector('form').addEventListener('submit', function(event) {
             event.preventDefault();
             const formData = new FormData(event.target);
-            const userId = document.getElementById('user_id').value;
+            const userId = document.getElementById('username').value;
 
             fetch('/recommend', {
                 method: 'POST',

@@ -30,8 +30,8 @@ if __name__ == '__main__':
 
     # food_data 및 feedback 데이터 로드
     foodData = dbHandler.loadData("SELECT * FROM food_data")
-    user_id = 'musugol'
-    feedbackData = dbHandler.loadData(f"SELECT user_id, food_code, food_number, rating FROM feedback WHERE user_id = '{user_id}'")
+    username = 'musugol'
+    feedbackData = dbHandler.loadData(f"SELECT username, food_code, food_number, rating FROM feedback WHERE username = '{username}'")
     print(feedbackData.columns)
 
     # 100g 기준 영양소 정보 추가
@@ -89,7 +89,7 @@ if __name__ == '__main__':
     contentRecommendation = contentBasedFiltering(userVector, foodData, optimizedFeatureDf)
 
     # 협업 필터링
-    collaborativeRecommendation = collaborativeFiltering(user_id, foodData, feedbackData)
+    collaborativeRecommendation = collaborativeFiltering(username, foodData, feedbackData)
 
     # 중복 제거
     combinedRecommendation = pd.concat([contentRecommendation, collaborativeRecommendation]).drop_duplicates(subset=['food_name'])
